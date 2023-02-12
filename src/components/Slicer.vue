@@ -36,23 +36,23 @@ var zImage = ref(null);
 
 const toImageData = (tensor) => {
     // 1. tensor * 255 to int32
-    if (props.isSigmoided) {
-        tensor = tensor.sigmoid().sub(0.5).mul(255 * 2).toInt();
+    if (!props.isSigmoided) {
+        tensor = tf.tidy(() => {
+            return tensor.sigmoid().sub(0.5).mul(255*2).toInt();
+        });
+
     } else {
-        tensor = tensor.mul(255).toInt();
+        tf.tidy(() => {
+            tensor = tensor.mul(255).toInt();
+        });
     }
-    // 2. grayscale to rgbs
-    tensor = tf.stack([tensor, tensor, tensor, tf.fill(tensor.shape, 255, 'int32')], 2);
     return tensor;
 }
 
 const updateXImage = () => {
-    const imageData = toImageData(tensor.gather(x.value, 0)); 
-    xImage.value = {
-        width: tensor.shape[1],
-        height: tensor.shape[2],
-        data: imageData.dataSync()
-    }
+    let data = tensor.gather(x.value, 0)
+    xImage.value = toImageData(data);
+    data.dispose();
 }
 
 const onXChanged = (value) => {
@@ -62,12 +62,9 @@ const onXChanged = (value) => {
 }
 
 const updateYImage = () => {
-    const imageData = toImageData(tensor.gather(y.value, 1));
-    yImage.value = {
-        width: tensor.shape[0],
-        height: tensor.shape[2],
-        data: imageData.dataSync()
-    }
+    let data = tensor.gather(y.value, 1)
+    yImage.value = toImageData(data);
+    data.dispose();
 }
 
 const onYChanged = (value) => {
@@ -77,12 +74,9 @@ const onYChanged = (value) => {
 }
 
 const updateZImage = () => {
-    const imageData = toImageData(tensor.gather(z.value, 2));
-    zImage.value = {
-        width: tensor.shape[0],
-        height: tensor.shape[1],
-        data: imageData.dataSync()
-    }
+    let data = tensor.gather(z.value, 2)
+    zImage.value = toImageData(data);
+    data.dispose();
 }
 
 const onZChanged = (value) => {
