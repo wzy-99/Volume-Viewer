@@ -8,15 +8,18 @@ const props = defineProps({
         type: Object,
         required: true
     },
-    isSigmoided: {
-        type: Boolean,
-        default: false
+    nomalMode: {
+        type: String,
+        default: "sigmoid"
     }
 })
-
 const emit = defineEmits(['xChanged', 'yChanged', 'zChanged']);
 
 var tensor = null;
+
+var channel = ref(0);
+var maxChannel = ref(0);
+var minChannel = ref(0);
 
 var x = ref(0);
 var y = ref(0);
@@ -34,61 +37,53 @@ var xImage = ref(null);
 var yImage = ref(null);
 var zImage = ref(null);
 
-const toImageData = (tensor) => {
-    // 1. tensor * 255 to int32
-    if (!props.isSigmoided) {
-        tensor = tf.tidy(() => {
-            return tensor.sigmoid().sub(0.5).mul(255*2).toInt();
-        });
-
-    } else {
-        tf.tidy(() => {
-            tensor = tensor.mul(255).toInt();
-        });
-    }
-    return tensor;
-}
-
-const updateXImage = () => {
-    let data = tensor.gather(x.value, 0)
-    xImage.value = toImageData(data);
-    data.dispose();
+const gatherImage = (axis, value) => {
+    return tf.tidy(() => {
+        let x = tensor.gather(value, axis);
+        if (x.shape.length == 3) {
+            x = x.gather(channel.value, 2);
+        } else if (x.shape.length == 2) {
+            // pass
+        } else {
+            throw new Error('Invalid shape', x.shape);
+        }
+        if (props.nomalMode === "sigmoid") {
+            x = x.sigmoid().mul(255).toInt();
+        } else if (props.nomalMode === "none") {
+            x = x.mul(255).toInt();
+        }
+        return x
+    });
 }
 
 const onXChanged = (value) => {
-    emit('xChanged', value);
-    x.value = value;
-    updateXImage();
-}
-
-const updateYImage = () => {
-    let data = tensor.gather(y.value, 1)
-    yImage.value = toImageData(data);
-    data.dispose();
+    if (value) {
+        x.value = value;
+    }
+    xImage.value?.dispose();
+    xImage.value = gatherImage(0, value);
 }
 
 const onYChanged = (value) => {
-    emit('yChanged', value);
-    y.value = value;
-    updateYImage();
-}
-
-const updateZImage = () => {
-    let data = tensor.gather(z.value, 2)
-    zImage.value = toImageData(data);
-    data.dispose();
+    if (value) {
+        y.value = value;
+    }
+    yImage.value?.dispose();
+    yImage.value = gatherImage(1, value);
 }
 
 const onZChanged = (value) => {
-    emit('zChanged', value);
-    z.value = value;
-    updateZImage();
+    if (value) {
+        z.value = value;
+    }
+    zImage.value?.dispose();
+    zImage.value = gatherImage(2, value);
 }
 
 const updateImage = () => {
-    updateXImage();
-    updateYImage();
-    updateZImage();
+    onXChanged(x.value);
+    onYChanged(y.value);
+    onZChanged(z.value);
 }
 
 const update = () => {
@@ -99,11 +94,20 @@ const update = () => {
     x_max.value = tensor.shape[0] - 1;
     y_max.value = tensor.shape[1] - 1;
     z_max.value = tensor.shape[2] - 1;
-    x.value = tensor.shape[0] / 2;
-    y.value = tensor.shape[1] / 2;
-    z.value = tensor.shape[2] / 2;
+    x.value = Math.floor(tensor.shape[0] / 2);
+    y.value = Math.floor(tensor.shape[1] / 2);
+    z.value = Math.floor(tensor.shape[2] / 2);
+    if (tensor.shape.length == 4) {
+        maxChannel.value = tensor.shape[3] - 1;
+        minChannel.value = 0;
+        channel.value = 0;
+    }
     updateImage();
 }
+
+watch(() => channel.value, () => {
+    updateImage();
+})
 
 onMounted(() => {
     if (props.array) {
@@ -121,6 +125,14 @@ watch(() => props.array, () => {
 </script>
 
 <template>
+    <div class="flex justify-between content-center p-2 gap-2 hover:bg-base-200 rounded-md
+    " v-if="tensor?.shape?.length == 4">
+        <b class="text-primary">
+            Channel:
+        </b>
+        <input type="number" class="w-16 border rounded-md"
+        :min="minChannel" :max="maxChannel" v-model="channel" />
+    </div>
     <div class="grid grid-cols-2 gap-2">
         <ImagePlane :image="xImage" :value="x" axis="x" @valueChanged="onXChanged" :min="x_min" :max="x_max" />
         <ImagePlane :image="yImage" :value="y" axis="y" @valueChanged="onYChanged" :min="y_min" :max="y_max" />

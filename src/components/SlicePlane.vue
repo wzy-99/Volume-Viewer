@@ -2,6 +2,7 @@
 import { Tensor } from '@tensorflow/tfjs';
 import * as tf from '@tensorflow/tfjs';
 import { computed, watch, ref, defineEmits, toRaw } from 'vue';
+import { Panzoom } from "@fancyapps/ui/dist/panzoom/panzoom.esm.js";
 
 const props = defineProps({
     image: {
@@ -30,7 +31,8 @@ const props = defineProps({
     }
 })
 
-const canvas = ref(null);
+const src = ref('');
+const panzoom = ref(null);
 
 var flip_horizontal = ref(true);
 var flip_vertical = ref(true);
@@ -66,9 +68,12 @@ const draw = () => {
             image = origin.reverse(0);
             origin.dispose();
         }
-        const ctx = canvas.value.getContext('2d');
+        // const ctx = canvas.value.getContext('2d');
         // ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
-        tf.browser.toPixels(image, canvas.value).then(() => {
+        const canvas = document.createElement('canvas');
+        tf.browser.toPixels(image, canvas).then(() => {
+            src.value = canvas.toDataURL();
+            new Panzoom(panzoom.value);
             tf.dispose(image);
         });
         console.log('memory used: ' + tf.memory().numBytes,
@@ -93,10 +98,11 @@ watch(() => flip_vertical.value, () => {
 </script>
 
 <template>
-    <div class="card bg-base-100 shadow-xl ">
-        <figure v-show="isImageValid" class="card-image">
-            <canvas ref="canvas" :width="width" :height="height" />
-        </figure>
+    <div class="card bg-base-100 shadow">
+        <div v-if="isImageValid" class="f-panzoom alert border-2 border-dashed
+         border-base-300" id="myPanzoom" ref="panzoom">
+            <img class="f-panzoom__content" :src="src" />
+        </div>
         <div v-if="!isImageValid" class="alert shadow-lg alert-info">
             <img src="Image_not_available.png" alt="Image not available" class="" />
         </div>

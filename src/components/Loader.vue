@@ -11,6 +11,7 @@ const onFileChanged = (e) => {
         const arrayBufferContents = e.target.result;
         let array = npy.parse(arrayBufferContents);
         emit('arrayChanged', array);
+        console.log('load:', array.shape, array.data.length);
     }
     reader.readAsArrayBuffer(e.target.files[0]);
 }
